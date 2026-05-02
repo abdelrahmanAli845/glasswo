@@ -124,6 +124,19 @@ class _WorkerCardState extends State<WorkerCard> {
   }
  }
 
+ /// إجمالي ساعات العمل بالدقائق
+ double get _totalWorkedHours {
+  if (widget.record.checkIn == null || widget.record.checkOut == null) return 0;
+  final minutes = widget.record.checkOut!.difference(widget.record.checkIn!).inMinutes;
+  return minutes / 60.0;
+ }
+
+ /// ساعات الأوفر تايم
+ double get _overtimeHours {
+  final extra = _totalWorkedHours - widget.worker.workHours;
+  return extra > 0 ? extra : 0;
+ }
+
  double calculateSalary() {
   if (widget.record.isAbsent) {
    return 0;
@@ -131,18 +144,9 @@ class _WorkerCardState extends State<WorkerCard> {
 
   double total = widget.worker.dailySalary;
 
-  /// ⏱️ أوفر تايم (مهم حتى لو مفيش بونص)
-  if (widget.record.checkIn != null && widget.record.checkOut != null) {
-   final duration =
-   widget.record.checkOut!.difference(widget.record.checkIn!);
-   final hours = duration.inHours;
-
-   final baseHours = widget.worker.workHours;
-
-   if (hours > baseHours) {
-    double hourRate = widget.worker.dailySalary / baseHours;
-    total += (hours - baseHours) * (hourRate * 2);
-   }
+  if (_overtimeHours > 0) {
+   final hourRate = widget.worker.dailySalary / widget.worker.workHours;
+   total += _overtimeHours * (hourRate * 2);
   }
 
   /// 🎁 الحوافز (فقط لو مسموح)
@@ -208,6 +212,70 @@ class _WorkerCardState extends State<WorkerCard> {
   widget.record.totalSalary = total;
   return total;
  }
+ String _formatHours(double hours) {
+  final h = hours.floor();
+  final m = ((hours - h) * 60).round();
+  if (h == 0) return "${m}د";
+  if (m == 0) return "${h}س";
+  return "${h}س ${m}د";
+ }
+
+ Widget _buildWorkSummary() {
+  final total = _totalWorkedHours;
+  final overtime = _overtimeHours;
+  final overtimePay = overtime > 0
+      ? overtime * (widget.worker.dailySalary / widget.worker.workHours) * 2
+      : 0.0;
+
+  return Container(
+   padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+   decoration: BoxDecoration(
+    color: Colors.blue.shade50,
+    borderRadius: BorderRadius.circular(10.r),
+   ),
+   child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceAround,
+    children: [
+     Column(
+      children: [
+       Text("إجمالي الوقت", style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
+       SizedBox(height: 2.h),
+       Text(_formatHours(total), style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold)),
+      ],
+     ),
+     Container(width: 1, height: 30.h, color: Colors.blue.shade200),
+     Column(
+      children: [
+       Text("أوفر تايم", style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
+       SizedBox(height: 2.h),
+       Text(
+        overtime > 0 ? _formatHours(overtime) : "—",
+        style: TextStyle(
+         fontSize: 13.sp,
+         fontWeight: FontWeight.bold,
+         color: overtime > 0 ? Colors.orange.shade700 : Colors.grey,
+        ),
+       ),
+      ],
+     ),
+     if (overtime > 0) ...[
+      Container(width: 1, height: 30.h, color: Colors.blue.shade200),
+      Column(
+       children: [
+        Text("أجر الأوفر", style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
+        SizedBox(height: 2.h),
+        Text(
+         "+${overtimePay.toStringAsFixed(0)} ج",
+         style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, color: Colors.green.shade700),
+        ),
+       ],
+      ),
+     ],
+    ],
+   ),
+  );
+ }
+
  @override
  Widget build(BuildContext context) {
   final totalSalary = calculateSalary();
@@ -284,6 +352,11 @@ class _WorkerCardState extends State<WorkerCard> {
            ),
           ],
          ),
+
+         if (widget.record.checkIn != null && widget.record.checkOut != null) ...[
+          SizedBox(height: 8.h),
+          _buildWorkSummary(),
+         ],
 
          SizedBox(height: 10.h),
   if (widget.worker.hasBonus) ...[
