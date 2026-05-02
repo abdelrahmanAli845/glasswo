@@ -12,7 +12,8 @@ class DailyRecord {
   bool onTime;
   int rating;
   String deductionType;
-  String notes; // 👈 جديد
+  String notes;
+  double advance;
 
   List<ProductionItem> productions;
 
@@ -28,7 +29,8 @@ class DailyRecord {
     this.deductionType = 'none',
     this.productions = const [],
     this.totalSalary = 0,
-    this.notes = '', // 👈 جديد
+    this.notes = '',
+    this.advance = 0,
   });
 
   Map<String, dynamic> toJson() {
@@ -44,6 +46,7 @@ class DailyRecord {
       'productions': productions.map((e) => e.toMap()).toList(),
       'totalSalary': totalSalary,
       'notes': notes,
+      'advance': advance,
     };
   }
 
@@ -64,6 +67,7 @@ class DailyRecord {
       isAbsent: data['isAbsent'] ?? false,
       totalSalary: (data['totalSalary'] ?? 0).toDouble(),
       notes: data['notes'] ?? '',
+      advance: (data['advance'] ?? 0).toDouble(),
       productions: (data['productions'] as List? ?? [])
           .map((p) => ProductionItem(
         productRef: p['productId'] != null
@@ -99,6 +103,7 @@ class DailyRecord {
       'deductionType': deductionType,
       'totalSalary': totalSalary,
       'notes': notes,
+      'advance': advance,
       'productions': productions.map((p) => {
         'productId': p.productRef?.id,
         'modelId': p.modelRef?.id,
@@ -121,6 +126,7 @@ class DailyRecord {
       isAbsent: data['isAbsent'] ?? false,
       totalSalary: (data['totalSalary'] ?? 0).toDouble(),
       notes: data['notes'] ?? '',
+      advance: (data['advance'] ?? 0).toDouble(),
       productions: (data['productions'] as List? ?? [])
           .map((e) => ProductionItem.fromMap(e))
           .toList(),

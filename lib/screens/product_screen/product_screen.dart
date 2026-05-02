@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../providers/product_provider.dart';
 import '../model_screen/model_screen.dart';
-import '../shapeScreen/shape_screen.dart';
 
 class ProductsScreen extends StatelessWidget {
   @override

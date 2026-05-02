@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:glass_wo/firebase_options.dart';
 import 'package:glass_wo/providers/bouns_provider.dart';
 import 'package:glass_wo/providers/model_provider.dart';
 import 'package:glass_wo/providers/product_provider.dart';
@@ -19,7 +20,9 @@ import 'package:provider/provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(MyApp());
 }

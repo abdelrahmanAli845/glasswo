@@ -6,10 +6,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/daily_record.dart';
-import '../../models/product.dart';
-import '../../models/product_model.dart';
-import '../../models/shape.dart';
-import '../../models/worker.dart';
 import '../../service/daily_service.dart';
 import 'worker_card.dart';
 import '../../providers/product_provider.dart';
@@ -29,14 +25,33 @@ bool isLoaded = false;
 @override
 void initState() {
 super.initState();
-Future.microtask(() {
+Future.microtask(() async {
 context.read<ProductProvider>().listen();
 context.read<ModelProvider>().listenAll();
 context.read<ShapeProvider>().listenAll();
 context.read<WorkerProvider>().listen();
-loadLocal(); // 🔥
+await loadFromFirestore();
 });
 }
+Future<void> loadFromFirestore() async {
+ final service = DailyService();
+ try {
+  final loaded = await service.getByDate(selectedDate);
+  if (loaded.isNotEmpty) {
+   setState(() {
+    for (var r in loaded) {
+     records[r.workerRef.id] = r;
+    }
+    isLoaded = true;
+   });
+  } else {
+   await loadLocal();
+  }
+ } catch (_) {
+  await loadLocal();
+ }
+}
+
 Future<void> saveLocal() async {
  final prefs = await SharedPreferences.getInstance();
 
@@ -147,7 +162,9 @@ if (picked != null) {
 setState(() {
 selectedDate = picked;
 records.clear();
+isLoaded = false;
 });
+await loadFromFirestore();
 }
 
 }
@@ -180,19 +197,22 @@ builder: (_) => Center(child: CircularProgressIndicator()),
 
 final service = DailyService();
 
+try {
 for (var r in records.values) {
 await service.save(r);
 }
-
-Navigator.pop(context); // يقفل اللودينج
-
-setState(() {
-records.clear(); // 🔥 يبدأ يوم جديد
-selectedDate = DateTime.now();
-});
-
+Navigator.pop(context);
 ScaffoldMessenger.of(context).showSnackBar(
 SnackBar(content: Text("تم حفظ اليوم ✅")),
 );
+} catch (e) {
+Navigator.pop(context);
+ScaffoldMessenger.of(context).showSnackBar(
+SnackBar(
+content: Text("حدث خطأ أثناء الحفظ، حاول مرة أخرى"),
+backgroundColor: Colors.red,
+),
+);
+}
 
 }}

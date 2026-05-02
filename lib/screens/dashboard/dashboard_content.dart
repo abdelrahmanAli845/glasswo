@@ -33,46 +33,6 @@ class _DashboardContentState extends State<DashboardContent> {
     return false;
   }
 
-// 💰 حساب المرتب
-  double calcSalary(Worker worker, List<DailyRecord> workerRecords) {
-    double total = 0;
-
-    for (var r in workerRecords) {
-      double daily = worker.dailySalary;
-
-      if (r.onTime) daily += 25;
-      if (r.rating == 5) daily += 25;
-
-      switch (r.deductionType) {
-        case 'qurofhour':
-          daily -= worker.dailySalary / worker.workHours/4;
-          break;
-        case 'halfofhour':
-          daily -= worker.dailySalary / worker.workHours/2;
-          break;
-        case 'hour':
-          daily -= worker.dailySalary / worker.workHours;
-          break;
-        case '2hours':
-          daily -= (worker.dailySalary / worker.workHours) * 2;
-          break;
-        case 'quarter':
-          daily -= worker.dailySalary * 0.25;
-          break;
-        case 'half':
-          daily -= worker.dailySalary * 0.5;
-          break;
-        case 'full':
-          daily -= worker.dailySalary;
-          break;
-      }
-
-      total += daily;
-    }
-
-    return total;
-  }
-
 // 📅 فلترة بالشهر
   List<DailyRecord> filterByMonth() {
     return widget.records.where((r) {
@@ -87,28 +47,24 @@ class _DashboardContentState extends State<DashboardContent> {
     final filteredRecords = filterByMonth();
 
     double totalFactory = 0;
-
-    /// 👑 أفضل عامل
-    Worker? bestWorker;
-    double bestSalary = -999;
+    double totalAdvance = 0;
 
     final workerStats = widget.workers.map((worker) {
 
       final workerRecords = filteredRecords.where((r) {
-        if (r.workerRef == null) return false;
         return r.workerRef.id == worker.id;
       }).toList();
 
       final salary = workerRecords.fold(
         0.0,
-            (sum, r) => sum + (r.totalSalary ?? 0),
+            (sum, r) => sum + r.totalSalary,
+      );
+      final advance = workerRecords.fold(
+        0.0,
+            (sum, r) => sum + r.advance,
       );
       totalFactory += salary;
-
-      if (salary > bestSalary) {
-        bestSalary = salary;
-        bestWorker = worker;
-      }
+      totalAdvance += advance;
 
       int attendance = workerRecords.length;
 
@@ -130,6 +86,7 @@ class _DashboardContentState extends State<DashboardContent> {
       return {
         "worker": worker,
         "salary": salary,
+        "advance": advance,
         "attendance": attendance,
         "quality": fullRating,
         "late": lateDays,
@@ -188,6 +145,20 @@ class _DashboardContentState extends State<DashboardContent> {
               ),
             ),
 
+            if (totalAdvance > 0)
+              Card(
+                child: ListTile(
+                  title: const Text("إجمالي السلف"),
+                  trailing: Text(
+                    "${totalAdvance.toInt()} ج",
+                    style: const TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+
             SizedBox(height: 10.h),
 
             /// 👷 قائمة العمال
@@ -199,6 +170,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   final worker = data["worker"] as Worker;
 
                   final salary = data["salary"] as double;
+                  final advance = data["advance"] as double;
                   final avg = data["avg"] as double;
 
                   return Card(
@@ -238,6 +210,8 @@ class _DashboardContentState extends State<DashboardContent> {
                               stat("⭐️", avg.toStringAsFixed(1)),
                               stat("متأخر", data["late"]),
                               stat("ملتزم", data["onTime"]),
+                              if (advance > 0)
+                                stat("سلف", "${advance.toInt()} ج"),
                             ],
                           ),
                         ],

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../models/worker.dart';
@@ -9,12 +10,20 @@ class WorkerProvider extends ChangeNotifier {
   WorkerProvider(this.service);
 
   List<Worker> workers = [];
+  StreamSubscription? _sub;
 
   void listen() {
-    service.stream().listen((data) {
+    if (_sub != null) return;
+    _sub = service.stream().listen((data) {
       workers = data;
       notifyListeners();
     });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   void save({

@@ -37,6 +37,8 @@ class _WorkerCardState extends State<WorkerCard> {
  late List<ProductionItem> productions;
  bool isExpanded = false;
  late List<TextEditingController> qtyControllers;
+ late TextEditingController _advanceController;
+
  @override
  void initState() {
   super.initState();
@@ -58,6 +60,10 @@ class _WorkerCardState extends State<WorkerCard> {
     text: p.quantity == 0 ? '' : p.quantity.toString(),
    );
   }).toList();
+
+  _advanceController = TextEditingController(
+   text: widget.record.advance == 0 ? '' : widget.record.advance.toString(),
+  );
  }
  @override
  void didUpdateWidget(covariant WorkerCard oldWidget) {
@@ -76,11 +82,17 @@ class _WorkerCardState extends State<WorkerCard> {
      ),
     );
    }
+   for (var c in qtyControllers) { c.dispose(); }
    qtyControllers = productions.map((p) {
     return TextEditingController(
      text: p.quantity == 0 ? '' : p.quantity.toString(),
     );
    }).toList();
+
+   _advanceController.dispose();
+   _advanceController = TextEditingController(
+    text: widget.record.advance == 0 ? '' : widget.record.advance.toString(),
+   );
    setState(() {});
   }
  }
@@ -91,11 +103,11 @@ class _WorkerCardState extends State<WorkerCard> {
   );
 
   if (time != null) {
-   final now = DateTime.now();
+   final d = widget.record.date;
    final date = DateTime(
-    now.year,
-    now.month,
-    now.day,
+    d.year,
+    d.month,
+    d.day,
     time.hour,
     time.minute,
    );
@@ -342,6 +354,19 @@ class _WorkerCardState extends State<WorkerCard> {
            widget.onChanged();
           },
          ),
+         SizedBox(height: 8.h),
+         TextFormField(
+          controller: _advanceController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+           labelText: "سلفة",
+           prefixIcon: Icon(Icons.money_off),
+          ),
+          onChanged: (v) {
+           widget.record.advance = double.tryParse(v) ?? 0;
+           widget.onChanged();
+          },
+         ),
          const Divider(),
   if (widget.worker.hasBonus) ...[
          /// 📦 الإنتاج
@@ -495,6 +520,7 @@ class _WorkerCardState extends State<WorkerCard> {
   for (var c in qtyControllers) {
    c.dispose();
   }
+  _advanceController.dispose();
   super.dispose();
  }
 }

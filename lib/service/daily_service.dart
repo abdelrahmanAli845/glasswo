@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/daily_record.dart';
-import '../models/production_item.dart';
 
 class DailyService {
   final _db = FirebaseFirestore.instance;
@@ -9,26 +8,9 @@ class DailyService {
   CollectionReference get _col => _db.collection('daily_records');
   Future<List<DailyRecord>> getAll() async {
     final result = await _col.get();
-
-    print("🔥 عدد الـ records: ${result.docs.length}");
-    return result.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      print("🔥 عدد الـ worker: ${data['workerRef']}");
-
-      return DailyRecord(
-        id: doc.id,
-        workerRef: data['workerRef'] ?? '',
-        date: data['date'].toDate(),
-        checkIn: data['checkIn']?.toDate(),
-        checkOut: data['checkOut']?.toDate(),
-        onTime: data['onTime'] ?? false,
-        rating: data['rating'] ?? 0,
-        deductionType: data['deductionType'] ?? 'none', // 🔥 مهم
-        productions: (data['productions'] as List? ?? [])
-            .map((e) => ProductionItem.fromMap(e))
-            .toList(),
-      );
-    }).toList();
+    return result.docs
+        .map((doc) => DailyRecord.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+        .toList();
   }
   Future<List<DailyRecord>> getByMonth(DateTime month) async {
     final start = DateTime(month.year, month.month, 1);
@@ -44,37 +26,24 @@ class DailyService {
     }).toList();
   }
   Future<void> save(DailyRecord record) async {
-    final col = FirebaseFirestore.instance.collection('daily_records');
-
     if (record.id.isEmpty) {
-      // ➕ إضافة
-      final doc = await col.add(record.toJson());
-      record.id = doc.id; // 🔥 احفظ الاي دي
+      final doc = await _col.add(record.toJson());
+      record.id = doc.id;
     } else {
-      // 🔁 تعديل
-      await col.doc(record.id).update(record.toJson());
+      await _col.doc(record.id).update(record.toJson());
     }
   }
   Future<List<DailyRecord>> getByDate(DateTime date) async {
+    final start = Timestamp.fromDate(DateTime(date.year, date.month, date.day));
+    final end = Timestamp.fromDate(DateTime(date.year, date.month, date.day, 23, 59, 59));
+
     final result = await _col
-        .where('date', isEqualTo: DateTime(date.year, date.month, date.day))
+        .where('date', isGreaterThanOrEqualTo: start)
+        .where('date', isLessThanOrEqualTo: end)
         .get();
 
     return result.docs.map((doc) {
-      final data = doc.data() as Map;
-
-      return DailyRecord(
-        id: doc.id,
-        workerRef: data['workerRef'],
-        date: data['date'].toDate(),
-        checkIn: data['checkIn']?.toDate(),
-        checkOut: data['checkOut']?.toDate(),
-        onTime: data['onTime'] ?? false,
-        rating: data['rating'] ?? 0,
-        productions: (data['productions'] as List)
-            .map((e) => ProductionItem.fromMap(e))
-            .toList(),
-      );
+      return DailyRecord.fromMap(doc.id, doc.data() as Map<String, dynamic>);
     }).toList();
   }
 }
