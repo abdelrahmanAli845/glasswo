@@ -33,6 +33,19 @@ class DailyService {
       await _col.doc(record.id).update(record.toJson());
     }
   }
+  Stream<List<DailyRecord>> streamByDate(DateTime date) {
+    final start = Timestamp.fromDate(DateTime(date.year, date.month, date.day));
+    final end = Timestamp.fromDate(DateTime(date.year, date.month, date.day, 23, 59, 59));
+
+    return _col
+        .where('date', isGreaterThanOrEqualTo: start)
+        .where('date', isLessThanOrEqualTo: end)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => DailyRecord.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+            .toList());
+  }
+
   Future<List<DailyRecord>> getByDate(DateTime date) async {
     final start = Timestamp.fromDate(DateTime(date.year, date.month, date.day));
     final end = Timestamp.fromDate(DateTime(date.year, date.month, date.day, 23, 59, 59));
