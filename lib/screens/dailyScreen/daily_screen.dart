@@ -59,14 +59,14 @@ Future<void> saveLocal() async {
       (key, value) => MapEntry(key, value.toLocalJson()),
  );
 
- final key = 'daily_${selectedDate.toIso8601String()}';
+ final key = 'daily_${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
 
  await prefs.setString(key, jsonEncode(data)); // ✅ حفظ
 }
 Future<void> loadLocal() async {
  final prefs = await SharedPreferences.getInstance();
 
- final key = 'daily_${selectedDate.toIso8601String()}';
+ final key = 'daily_${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
 
  final json = prefs.getString(key); // ✅ قراءة
 
@@ -201,6 +201,11 @@ try {
 for (var r in records.values) {
 await service.save(r);
 }
+// امسح الـ local cache بعد الحفظ على Firestore
+final prefs = await SharedPreferences.getInstance();
+final key = 'daily_${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+await prefs.remove(key);
+
 Navigator.pop(context);
 ScaffoldMessenger.of(context).showSnackBar(
 SnackBar(content: Text("تم حفظ اليوم ✅")),
