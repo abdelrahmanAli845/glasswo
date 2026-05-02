@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "929825893517",
+    "project_id": "glassworker",
+    "storage_bucket": "glassworker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:929825893517:android:aa69e3ffb97eb8f84f06c4",
+        "android_client_info": {
+          "package_name": "com.example.glass_wo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8Dv9RqT_DM1LiFuEt6d4roQQy6jrGLMA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
