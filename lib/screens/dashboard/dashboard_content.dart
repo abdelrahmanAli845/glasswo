@@ -66,7 +66,8 @@ class _DashboardContentState extends State<DashboardContent> {
       totalFactory += salary;
       totalAdvance += advance;
 
-      int attendance = workerRecords.length;
+      int attendance = workerRecords.where((r) => !r.isAbsent).length;
+      int absent = workerRecords.where((r) => r.isAbsent).length;
 
       int fullRating =
           workerRecords.where((r) => r.rating == 5).length;
@@ -88,6 +89,7 @@ class _DashboardContentState extends State<DashboardContent> {
         "salary": salary,
         "advance": advance,
         "attendance": attendance,
+        "absent": absent,
         "quality": fullRating,
         "late": lateDays,
         "onTime": onTimeDays,
@@ -206,6 +208,8 @@ class _DashboardContentState extends State<DashboardContent> {
                             runSpacing: 8.h,
                             children: [
                               stat("حضور", data["attendance"]),
+                              if ((data["absent"] as int) > 0)
+                                statColored("غياب", data["absent"], Colors.red.shade700),
                               stat("جودة", data["quality"]),
                               stat("⭐️", avg.toStringAsFixed(1)),
                               stat("متأخر", data["late"]),
@@ -228,13 +232,24 @@ class _DashboardContentState extends State<DashboardContent> {
   }
   Widget stat(String title, dynamic value) {
     return Container(
-      padding:
-      EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         borderRadius: BorderRadius.circular(10.r),
       ),
       child: Text("$title: $value"),
+    );
+  }
+
+  Widget statColored(String title, dynamic value, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text("$title: $value", style: TextStyle(color: color, fontWeight: FontWeight.bold)),
     );
   }
 }

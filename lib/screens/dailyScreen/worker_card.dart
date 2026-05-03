@@ -281,12 +281,17 @@ class _WorkerCardState extends State<WorkerCard> {
   final totalSalary = calculateSalary();
 
   return GestureDetector(
-   onTap: () => setState(() => isExpanded = !isExpanded),
+   onTap: widget.record.isAbsent ? null : () => setState(() => isExpanded = !isExpanded),
    child: Container(
     margin:  EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
     child: Card(
-     shape:
-     RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+     color: widget.record.isAbsent ? Colors.red.shade50 : null,
+     shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16.r),
+      side: widget.record.isAbsent
+          ? BorderSide(color: Colors.red.shade200, width: 1.5)
+          : BorderSide.none,
+     ),
      elevation: 3,
      child: Padding(
       padding:  EdgeInsets.all(12.w),
@@ -297,29 +302,48 @@ class _WorkerCardState extends State<WorkerCard> {
          mainAxisAlignment: MainAxisAlignment.spaceBetween,
          children: [
           Text(widget.worker.name),
-          Column(
-            children: [
-             Text("غياب"),
-
-             Switch(
-               value: widget.record.isAbsent,
-               onChanged: (v) {
-                setState(() {
-                 widget.record.isAbsent = v;
-                });
-                widget.onChanged();
-               },
-              ),
-            ],
-          ),
           Row(
+           mainAxisSize: MainAxisSize.min,
            children: [
-            Text("${totalSalary.toStringAsFixed(2)} ج"),
-            Icon(isExpanded
-                ? Icons.keyboard_arrow_up
-                : Icons.keyboard_arrow_down),
+            Text("غياب", style: TextStyle(fontSize: 12.sp)),
+            Switch(
+              value: widget.record.isAbsent,
+              activeThumbColor: Colors.red,
+              onChanged: (v) {
+               setState(() {
+                widget.record.isAbsent = v;
+                if (v) isExpanded = false;
+               });
+               widget.onChanged();
+              },
+             ),
            ],
           ),
+          if (widget.record.isAbsent)
+           Container(
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+            decoration: BoxDecoration(
+             color: Colors.red.shade200,
+             borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Text(
+             "غائب",
+             style: TextStyle(
+              color: Colors.red.shade900,
+              fontWeight: FontWeight.bold,
+              fontSize: 13.sp,
+             ),
+            ),
+           )
+          else
+           Row(
+            children: [
+             Text("${totalSalary.toStringAsFixed(2)} ج"),
+             Icon(isExpanded
+                 ? Icons.keyboard_arrow_up
+                 : Icons.keyboard_arrow_down),
+            ],
+           ),
          ],
         ),
 
