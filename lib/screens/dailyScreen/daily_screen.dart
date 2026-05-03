@@ -254,7 +254,7 @@ class _DailyScreenState extends State<DailyScreen> {
       } else if (r.sessions.any((s) => s.checkIn != null)) {
         present++;
       }
-      totalSalary += r.totalSalary;
+      totalSalary += r.isAbsent ? 0 : r.totalSalary;
     }
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
