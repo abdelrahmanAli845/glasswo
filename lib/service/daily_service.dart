@@ -12,6 +12,12 @@ class DailyService {
         .map((doc) => DailyRecord.fromMap(doc.id, doc.data() as Map<String, dynamic>))
         .toList();
   }
+
+  Stream<List<DailyRecord>> streamAll() {
+    return _col.snapshots().map((snap) => snap.docs
+        .map((doc) => DailyRecord.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+        .toList());
+  }
   Future<List<DailyRecord>> getByMonth(DateTime month) async {
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);

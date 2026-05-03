@@ -67,12 +67,23 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // حفظ تلقائي لـ Firestore عند كل تعديل (debounced 800ms)
+  bool _shouldSave(DailyRecord r) {
+    return r.isAbsent ||
+        r.sessions.any((s) => s.checkIn != null || s.checkOut != null) ||
+        r.productions.any((p) => p.productRef != null) ||
+        r.advance != 0 ||
+        r.rating != 0 ||
+        r.notes.isNotEmpty ||
+        r.deductionType != 'none' ||
+        r.id.isNotEmpty;
+  }
+
   void _autoSave() {
     setState(() => isSyncing = true);
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 800), () async {
       for (var r in records.values) {
+        if (!_shouldSave(r)) continue;
         try {
           await _service.save(r);
         } catch (_) {}
@@ -84,6 +95,13 @@ class _DailyScreenState extends State<DailyScreen> {
   @override
   void dispose() {
     _firestoreSub?.cancel();
+    // flush pending save immediately so changes aren't lost on quick navigation
+    if (_saveDebounce?.isActive == true) {
+      _saveDebounce!.cancel();
+      for (var r in records.values) {
+        if (_shouldSave(r)) _service.save(r).catchError((_) {});
+      }
+    }
     _saveDebounce?.cancel();
     super.dispose();
   }

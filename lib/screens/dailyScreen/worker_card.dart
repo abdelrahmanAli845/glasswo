@@ -8,6 +8,7 @@ import '../../models/product.dart';
 import '../../models/product_model.dart';
 import '../../models/production_item.dart';
 import '../../models/shape.dart';
+import '../../models/work_session.dart';
 import '../../models/worker.dart';
 import '../../providers/bouns_provider.dart';
 
@@ -43,6 +44,10 @@ class _WorkerCardState extends State<WorkerCard> {
  void initState() {
   super.initState();
 
+  if (widget.record.sessions.isEmpty) {
+   widget.record.sessions = [WorkSession()];
+  }
+
   productions = List.from(widget.record.productions);
 
   if (productions.isEmpty) {
@@ -70,6 +75,10 @@ class _WorkerCardState extends State<WorkerCard> {
   super.didUpdateWidget(oldWidget);
 
   if (oldWidget.record != widget.record) {
+   if (widget.record.sessions.isEmpty) {
+    widget.record.sessions = [WorkSession()];
+   }
+
    productions = List.from(widget.record.productions);
 
    if (productions.isEmpty) {
@@ -96,7 +105,7 @@ class _WorkerCardState extends State<WorkerCard> {
    setState(() {});
   }
  }
- Future<void> pickTime(bool isCheckIn) async {
+ Future<void> pickTime(int sessionIndex, bool isCheckIn) async {
   final time = await showTimePicker(
    context: context,
    initialTime: TimeOfDay.now(),
@@ -104,19 +113,14 @@ class _WorkerCardState extends State<WorkerCard> {
 
   if (time != null) {
    final d = widget.record.date;
-   final date = DateTime(
-    d.year,
-    d.month,
-    d.day,
-    time.hour,
-    time.minute,
-   );
+   final date = DateTime(d.year, d.month, d.day, time.hour, time.minute);
 
    setState(() {
+    final session = widget.record.sessions[sessionIndex];
     if (isCheckIn) {
-     widget.record.checkIn = date;
+     session.checkIn = date;
     } else {
-     widget.record.checkOut = date;
+     session.checkOut = date;
     }
    });
 
@@ -124,11 +128,18 @@ class _WorkerCardState extends State<WorkerCard> {
   }
  }
 
- /// إجمالي ساعات العمل بالدقائق
+ String _formatTime(DateTime? dt) {
+  if (dt == null) return '--:--';
+  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+ }
+
  double get _totalWorkedHours {
-  if (widget.record.checkIn == null || widget.record.checkOut == null) return 0;
-  final minutes = widget.record.checkOut!.difference(widget.record.checkIn!).inMinutes;
-  return minutes / 60.0;
+  double total = 0;
+  for (final s in widget.record.sessions) {
+   if (s.checkIn == null || s.checkOut == null) continue;
+   total += s.checkOut!.difference(s.checkIn!).inMinutes / 60.0;
+  }
+  return total;
  }
 
  /// ساعات الأوفر تايم
@@ -350,34 +361,49 @@ class _WorkerCardState extends State<WorkerCard> {
         SizedBox(height: 10.h),
 
         if (isExpanded) ...[
-         /// ⏰ الوقت
-         Row(
-          children: [
-           Expanded(
-            child: ElevatedButton(
-             onPressed: () => pickTime(true),
-             child: Text(
-              widget.record.checkIn == null
-                  ? "حضور"
-                  : "${widget.record.checkIn!.hour}:${widget.record.checkIn!.minute}",
+         /// ⏰ الأوقات
+         ...widget.record.sessions.asMap().entries.map((entry) {
+          final i = entry.key;
+          final session = entry.value;
+          return Padding(
+           padding: EdgeInsets.only(bottom: 6.h),
+           child: Row(
+            children: [
+             Expanded(
+              child: ElevatedButton(
+               onPressed: () => pickTime(i, true),
+               child: Text(session.checkIn == null ? "حضور" : _formatTime(session.checkIn)),
+              ),
              ),
-            ),
-           ),
-           SizedBox(width: 8.w),
-           Expanded(
-            child: ElevatedButton(
-             onPressed: () => pickTime(false),
-             child: Text(
-              widget.record.checkOut == null
-                  ? "انصراف"
-                  : "${widget.record.checkOut!.hour}:${widget.record.checkOut!.minute}",
+             SizedBox(width: 6.w),
+             Expanded(
+              child: ElevatedButton(
+               onPressed: () => pickTime(i, false),
+               child: Text(session.checkOut == null ? "انصراف" : _formatTime(session.checkOut)),
+              ),
              ),
-            ),
+             if (widget.record.sessions.length > 1)
+              IconButton(
+               icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade400, size: 20.w),
+               onPressed: () {
+                setState(() => widget.record.sessions.removeAt(i));
+                widget.onChanged();
+               },
+              ),
+            ],
            ),
-          ],
+          );
+         }),
+         TextButton.icon(
+          onPressed: () {
+           setState(() => widget.record.sessions.add(WorkSession()));
+           widget.onChanged();
+          },
+          icon: Icon(Icons.add_circle_outline, size: 18.w),
+          label: const Text("وقت إضافي"),
          ),
 
-         if (widget.record.checkIn != null && widget.record.checkOut != null) ...[
+         if (_totalWorkedHours > 0) ...[
           SizedBox(height: 8.h),
           _buildWorkSummary(),
          ],

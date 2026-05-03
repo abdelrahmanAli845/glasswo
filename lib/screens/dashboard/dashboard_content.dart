@@ -21,15 +21,13 @@ class _DashboardContentState extends State<DashboardContent> {
 
   DateTime selectedMonth = DateTime.now();
 
-// ⏰ التأخير بعد 8:5
+// ⏰ التأخير بعد 8:05 (الجلسة الأولى)
   bool isLate(DailyRecord r) {
-    if (r.checkIn == null) return false;
-
-    final time = r.checkIn!;
-
-    if (time.hour > 8) return true;
-    if (time.hour == 8 && time.minute > 5) return true;
-
+    if (r.sessions.isEmpty) return false;
+    final checkIn = r.sessions.first.checkIn;
+    if (checkIn == null) return false;
+    if (checkIn.hour > 8) return true;
+    if (checkIn.hour == 8 && checkIn.minute > 5) return true;
     return false;
   }
 
