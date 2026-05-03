@@ -9,6 +9,7 @@ import '../../service/daily_service.dart';
 import 'worker_card.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/model_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/shape_provider.dart';
 import '../../providers/worker_provider.dart';
 
@@ -189,7 +190,7 @@ class _DailyScreenState extends State<DailyScreen> {
               shapes: shapes,
               onChanged: () {
                 setState(() {});
-                _autoSave();
+                if (context.read<SettingsProvider>().autoSave) _autoSave();
               },
             );
           }).toList(),

@@ -4,6 +4,7 @@ import 'package:glass_wo/screens/dashboard/dashboard.dart';
 import '../bouns/bouns_screen.dart';
 import '../dailyScreen/daily_screen.dart';
 import '../product_screen/product_screen.dart';
+import '../settings/settings_screen.dart';
 import '../worker screen/workers_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -17,6 +18,7 @@ class HomeScreen extends StatelessWidget {
       {"title": "إدارة اليوم", "icon": Icons.calendar_today},
       {"title": "التقارير", "icon": Icons.bar_chart},
       {"title": "الحوافز", "icon": Icons.settings_ethernet},
+      {"title": "الإعدادات", "icon": Icons.settings},
     ];
 
     return Scaffold(
@@ -45,6 +47,8 @@ class HomeScreen extends StatelessWidget {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => DashboardScreen()));
               } else if (i == 4) {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => BonusScreen()));
+              } else if (i == 5) {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
               }
             },
             child: Container(

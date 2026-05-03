@@ -6,6 +6,7 @@ import 'package:glass_wo/firebase_options.dart';
 import 'package:glass_wo/providers/bouns_provider.dart';
 import 'package:glass_wo/providers/model_provider.dart';
 import 'package:glass_wo/providers/product_provider.dart';
+import 'package:glass_wo/providers/settings_provider.dart';
 import 'package:glass_wo/providers/shape_provider.dart';
 import 'package:glass_wo/providers/worker_provider.dart';
 import 'package:glass_wo/screens/homeScreen/home_screen.dart';
@@ -42,7 +43,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => WorkerProvider(WorkerService())..listen(),
         ),
-        ChangeNotifierProvider(create: (_) => BonusProvider()..load()), // 🔥
+        ChangeNotifierProvider(create: (_) => BonusProvider()..load()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()..load()),
           ChangeNotifierProvider(create: (_) => ModelProvider(ModelService())..listenAll()),
 
         // Products
