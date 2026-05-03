@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/daily_record.dart';
 import '../../models/worker.dart';
 
@@ -20,6 +21,7 @@ class DashboardContent extends StatefulWidget {
 class _DashboardContentState extends State<DashboardContent> {
 
   DateTime selectedMonth = DateTime.now();
+  String? _selectedWorkerId;
 
 // ⏰ التأخير بعد 8:05 (الجلسة الأولى)
   bool isLate(DailyRecord r) {
@@ -37,6 +39,20 @@ class _DashboardContentState extends State<DashboardContent> {
       return r.date.month == selectedMonth.month &&
           r.date.year == selectedMonth.year;
     }).toList();
+  }
+
+  void _exportCSV(List<Map<String, dynamic>> stats) {
+    final monthStr = "${selectedMonth.month}/${selectedMonth.year}";
+    final buffer = StringBuffer();
+    buffer.writeln("تقرير شهر $monthStr");
+    buffer.writeln("العامل,الحضور,الغياب,إجمالي الراتب,السلف,متوسط التقييم");
+    for (final data in stats) {
+      final w = data["worker"] as Worker;
+      buffer.writeln(
+        "${w.name},${data["attendance"]},${data["absent"]},${(data["salary"] as double).toInt()},${(data["advance"] as double).toInt()},${(data["avg"] as double).toStringAsFixed(1)}",
+      );
+    }
+    Share.share(buffer.toString(), subject: "تقرير $monthStr");
   }
 
   @override
@@ -61,8 +77,6 @@ class _DashboardContentState extends State<DashboardContent> {
         0.0,
             (sum, r) => sum + r.advance,
       );
-      totalFactory += salary;
-      totalAdvance += advance;
 
       int attendance = workerRecords.where((r) => !r.isAbsent).length;
       int absent = workerRecords.where((r) => r.isAbsent).length;
@@ -95,8 +109,28 @@ class _DashboardContentState extends State<DashboardContent> {
       };
     }).toList();
 
+    // Apply worker filter
+    final filteredStats = _selectedWorkerId == null
+        ? workerStats
+        : workerStats.where((d) => (d["worker"] as Worker).id == _selectedWorkerId).toList();
+
+    // Compute totals from filtered stats
+    for (final data in filteredStats) {
+      totalFactory += data["salary"] as double;
+      totalAdvance += data["advance"] as double;
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Dashboard 🔥")),
+      appBar: AppBar(
+        title: const Text("Dashboard 🔥"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            tooltip: "تصدير CSV",
+            onPressed: () => _exportCSV(filteredStats),
+          ),
+        ],
+      ),
       body: Padding(
         padding:  EdgeInsets.all(12.w),
         child: Column(
@@ -129,7 +163,32 @@ class _DashboardContentState extends State<DashboardContent> {
               ],
             ),
 
-            SizedBox(height: 10.h),
+            // Worker filter chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: 8.w),
+              child: Row(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(right: 6.w),
+                    child: FilterChip(
+                      label: const Text("الكل"),
+                      selected: _selectedWorkerId == null,
+                      onSelected: (_) => setState(() => _selectedWorkerId = null),
+                    ),
+                  ),
+                  ...widget.workers.map((w) => Padding(
+                    padding: EdgeInsets.only(right: 6.w),
+                    child: FilterChip(
+                      label: Text(w.name),
+                      selected: _selectedWorkerId == w.id,
+                      onSelected: (_) => setState(() => _selectedWorkerId = w.id),
+                    ),
+                  )),
+                ],
+              ),
+            ),
+            SizedBox(height: 8.h),
 
             /// 💰 إجمالي المصنع
             Card(
@@ -164,9 +223,9 @@ class _DashboardContentState extends State<DashboardContent> {
             /// 👷 قائمة العمال
             Expanded(
               child: ListView.builder(
-                itemCount: workerStats.length,
+                itemCount: filteredStats.length,
                 itemBuilder: (context, index) {
-                  final data = workerStats[index];
+                  final data = filteredStats[index];
                   final worker = data["worker"] as Worker;
 
                   final salary = data["salary"] as double;

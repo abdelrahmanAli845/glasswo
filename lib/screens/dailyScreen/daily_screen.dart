@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import '../../models/daily_record.dart';
+import '../../models/work_session.dart';
+import '../../models/worker.dart';
 import '../../service/daily_service.dart';
 import 'worker_card.dart';
 import '../../providers/product_provider.dart';
@@ -89,6 +91,15 @@ class _DailyScreenState extends State<DailyScreen> {
       } catch (_) {}
     }
     if (mounted) setState(() => isSyncing = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("تم الحفظ بنجاح ✓"),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _autoSave() {
@@ -154,6 +165,11 @@ class _DailyScreenState extends State<DailyScreen> {
               child: Icon(Icons.cloud_done, color: Colors.white),
             ),
           IconButton(
+            icon: const Icon(Icons.copy_all),
+            tooltip: "نسخ من أمس",
+            onPressed: _copyFromYesterday,
+          ),
+          IconButton(
             icon: Icon(Icons.calendar_today),
             onPressed: _pickDate,
           ),
@@ -172,6 +188,7 @@ class _DailyScreenState extends State<DailyScreen> {
       ),
       body: ListView(
         children: [
+          _buildDailySummary(workers),
           ...workers.map((w) {
             records.putIfAbsent(
               w.id,
@@ -197,6 +214,71 @@ class _DailyScreenState extends State<DailyScreen> {
           SizedBox(height: 80.h),
         ],
       ),
+    );
+  }
+
+  Future<void> _copyFromYesterday() async {
+    final yesterday = selectedDate.subtract(const Duration(days: 1));
+    final yesterdayRecords = await _service.getByDate(yesterday);
+    if (!mounted) return;
+    if (yesterdayRecords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("لا يوجد سجلات لأمس")),
+      );
+      return;
+    }
+    setState(() {
+      for (final r in yesterdayRecords) {
+        final id = r.workerRef.id;
+        if (!records.containsKey(id)) continue;
+        records[id]!.sessions = r.sessions.map((s) => WorkSession(
+          checkIn: s.checkIn != null
+              ? DateTime(selectedDate.year, selectedDate.month, selectedDate.day, s.checkIn!.hour, s.checkIn!.minute)
+              : null,
+          checkOut: s.checkOut != null
+              ? DateTime(selectedDate.year, selectedDate.month, selectedDate.day, s.checkOut!.hour, s.checkOut!.minute)
+              : null,
+        )).toList();
+      }
+    });
+  }
+
+  Widget _buildDailySummary(List<Worker> workers) {
+    int present = 0, absent = 0;
+    double totalSalary = 0;
+    for (final w in workers) {
+      final r = records[w.id];
+      if (r == null) continue;
+      if (r.isAbsent) {
+        absent++;
+      } else if (r.sessions.any((s) => s.checkIn != null)) {
+        present++;
+      }
+      totalSalary += r.totalSalary;
+    }
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+      color: Colors.blue.shade50,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 16.w),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _summaryItem("حضر", "$present", Colors.green.shade700),
+            _summaryItem("غاب", "$absent", Colors.red.shade700),
+            _summaryItem("إجمالي", "${totalSalary.toInt()} ج", Colors.blue.shade700),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold, color: color)),
+        Text(label, style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
+      ],
     );
   }
 

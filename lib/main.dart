@@ -61,12 +61,18 @@ class MyApp extends StatelessWidget {
         designSize: const Size(384, 784),
     minTextAdapt: true,
     splitScreenMode: true,
-    builder: (context, child) { return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Workers System',
-          theme: appTheme,
-          home: HomeScreen(),
-        );}
+    builder: (context, child) {
+          return Consumer<SettingsProvider>(
+            builder: (context, settings, _) => MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Workers System',
+              theme: appTheme,
+              darkTheme: darkAppTheme,
+              themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
+              home: HomeScreen(),
+            ),
+          );
+        }
       ),
     );
   }

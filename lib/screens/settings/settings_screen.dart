@@ -20,6 +20,13 @@ class SettingsScreen extends StatelessWidget {
             onChanged: (v) => context.read<SettingsProvider>().setAutoSave(v),
           ),
           const Divider(),
+          SwitchListTile(
+            title: const Text("الوضع الليلي"),
+            subtitle: const Text("تحويل الشاشة للوضع الداكن"),
+            value: settings.darkMode,
+            onChanged: (v) => context.read<SettingsProvider>().setDarkMode(v),
+          ),
+          const Divider(),
         ],
       ),
     );
