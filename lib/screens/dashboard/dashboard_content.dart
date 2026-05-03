@@ -55,7 +55,7 @@ class _DashboardContentState extends State<DashboardContent> {
 
       final salary = workerRecords.fold(
         0.0,
-            (sum, r) => sum + r.totalSalary,
+        (sum, r) => sum + (r.isAbsent ? 0 : r.totalSalary),
       );
       final advance = workerRecords.fold(
         0.0,

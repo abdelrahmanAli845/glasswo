@@ -150,6 +150,7 @@ class _WorkerCardState extends State<WorkerCard> {
 
  double calculateSalary() {
   if (widget.record.isAbsent) {
+   widget.record.totalSalary = 0;
    return 0;
   }
 
