@@ -106,20 +106,30 @@ class _WorkerCardState extends State<WorkerCard> {
   }
  }
  Future<void> pickTime(int sessionIndex, bool isCheckIn) async {
+  final session = widget.record.sessions[sessionIndex];
   final time = await showTimePicker(
    context: context,
-   initialTime: TimeOfDay.now(),
+   initialTime: isCheckIn
+       ? (session.checkIn != null ? TimeOfDay.fromDateTime(session.checkIn!) : TimeOfDay.now())
+       : (session.checkOut != null ? TimeOfDay.fromDateTime(session.checkOut!) : TimeOfDay.now()),
   );
 
   if (time != null) {
    final d = widget.record.date;
-   final date = DateTime(d.year, d.month, d.day, time.hour, time.minute);
+   var date = DateTime(d.year, d.month, d.day, time.hour, time.minute);
 
    setState(() {
-    final session = widget.record.sessions[sessionIndex];
     if (isCheckIn) {
      session.checkIn = date;
+     // لو checkOut موجود وبقى قبل checkIn، اعتبره اليوم التالي
+     if (session.checkOut != null && session.checkOut!.isBefore(date)) {
+      session.checkOut = session.checkOut!.add(const Duration(days: 1));
+     }
     } else {
+     // لو checkOut قبل checkIn، اعتبره ورديه ليلية (اليوم التالي)
+     if (session.checkIn != null && date.isBefore(session.checkIn!)) {
+      date = date.add(const Duration(days: 1));
+     }
      session.checkOut = date;
     }
    });
@@ -134,12 +144,13 @@ class _WorkerCardState extends State<WorkerCard> {
  }
 
  double get _totalWorkedHours {
-  double total = 0;
+  int totalMinutes = 0;
   for (final s in widget.record.sessions) {
    if (s.checkIn == null || s.checkOut == null) continue;
-   total += s.checkOut!.difference(s.checkIn!).inMinutes / 60.0;
+   final diff = s.checkOut!.difference(s.checkIn!).inMinutes;
+   if (diff > 0) totalMinutes += diff;
   }
-  return total;
+  return totalMinutes / 60.0;
  }
 
  /// ساعات الأوفر تايم
@@ -225,8 +236,9 @@ class _WorkerCardState extends State<WorkerCard> {
   return total;
  }
  String _formatHours(double hours) {
-  final h = hours.floor();
-  final m = ((hours - h) * 60).round();
+  final totalMinutes = (hours * 60).round();
+  final h = totalMinutes ~/ 60;
+  final m = totalMinutes % 60;
   if (h == 0) return "${m}د";
   if (m == 0) return "${h}س";
   return "${h}س ${m}د";
