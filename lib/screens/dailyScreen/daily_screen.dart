@@ -245,7 +245,6 @@ class _DailyScreenState extends State<DailyScreen> {
 
   Widget _buildDailySummary(List<Worker> workers) {
     int present = 0, absent = 0;
-    double totalSalary = 0;
     for (final w in workers) {
       final r = records[w.id];
       if (r == null) continue;
@@ -254,7 +253,6 @@ class _DailyScreenState extends State<DailyScreen> {
       } else if (r.sessions.any((s) => s.checkIn != null)) {
         present++;
       }
-      totalSalary += r.isAbsent ? 0 : r.totalSalary;
     }
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
@@ -266,7 +264,6 @@ class _DailyScreenState extends State<DailyScreen> {
           children: [
             _summaryItem("حضر", "$present", Colors.green.shade700),
             _summaryItem("غاب", "$absent", Colors.red.shade700),
-            _summaryItem("إجمالي", "${totalSalary.toInt()} ج", Colors.blue.shade700),
           ],
         ),
       ),
