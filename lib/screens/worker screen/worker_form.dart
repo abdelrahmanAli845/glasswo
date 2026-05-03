@@ -67,20 +67,43 @@ void showWorkerForm(BuildContext context, {Worker? worker}) {
                 ),
 
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    final salary = double.tryParse(salaryController.text);
+                    final hours = double.tryParse(hoursController.text);
+
+                    if (name.isEmpty || salary == null || hours == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("تأكد من ملء الاسم والمرتب وعدد الساعات"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
                     final provider =
-                    Provider.of<WorkerProvider>(context, listen: false);
+                        Provider.of<WorkerProvider>(context, listen: false);
 
-                    provider.save(
-                      id: worker?.id,
-                      name: nameController.text,
-                      salary: double.parse(salaryController.text),
-                      workHours:
-                      double.parse(hoursController.text),
-                      hasBonus: hasBonus, // 👈 مهم
-                    );
-
-                    Navigator.pop(context);
+                    try {
+                      await provider.save(
+                        id: worker?.id,
+                        name: name,
+                        salary: salary,
+                        workHours: hours,
+                        hasBonus: hasBonus,
+                      );
+                      if (context.mounted) Navigator.pop(context);
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("فشل الحفظ: $e"),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   },
                   child: Text("حفظ"),
                 )

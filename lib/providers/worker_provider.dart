@@ -26,31 +26,31 @@ class WorkerProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  void save({
+  Future<void> save({
     String? id,
     required String name,
     required double salary,
     required double workHours,
     required bool hasBonus,
-  }) {
+  }) async {
     if (id == null) {
-      service.add(
+      await service.add(
         Worker(
           id: '',
           name: name,
           dailySalary: salary,
           workHours: workHours,
-          hasBonus: hasBonus, // 👈🔥 لازم يتحط
+          hasBonus: hasBonus,
         ),
       );
     } else {
-      service.update(
+      await service.update(
         Worker(
           id: id,
           name: name,
           dailySalary: salary,
           workHours: workHours,
-          hasBonus: hasBonus, // 👈🔥 لازم يتحط
+          hasBonus: hasBonus,
         ),
       );
     }
