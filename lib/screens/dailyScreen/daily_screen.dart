@@ -78,6 +78,18 @@ class _DailyScreenState extends State<DailyScreen> {
         r.id.isNotEmpty;
   }
 
+  Future<void> _saveNow() async {
+    _saveDebounce?.cancel();
+    setState(() => isSyncing = true);
+    for (var r in records.values) {
+      if (!_shouldSave(r)) continue;
+      try {
+        await _service.save(r);
+      } catch (_) {}
+    }
+    if (mounted) setState(() => isSyncing = false);
+  }
+
   void _autoSave() {
     setState(() => isSyncing = true);
     _saveDebounce?.cancel();
@@ -145,6 +157,17 @@ class _DailyScreenState extends State<DailyScreen> {
             onPressed: _pickDate,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: isSyncing ? null : _saveNow,
+        icon: isSyncing
+            ? SizedBox(
+                width: 20.w,
+                height: 20.w,
+                child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+              )
+            : const Icon(Icons.save),
+        label: Text(isSyncing ? "جاري الحفظ..." : "حفظ اليوم"),
       ),
       body: ListView(
         children: [
