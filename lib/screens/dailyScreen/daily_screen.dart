@@ -25,7 +25,9 @@ class _DailyScreenState extends State<DailyScreen> {
   Map<String, DailyRecord> records = {};
   bool isLoaded = false;
   bool isSyncing = false;
-  bool _hasLocalChanges = false;
+
+  /// Worker IDs that have unsaved local changes (not yet pushed to Firestore)
+  final Set<String> _pendingLocalIds = {};
 
   StreamSubscription? _firestoreSub;
   final _service = DailyService();
@@ -43,23 +45,31 @@ class _DailyScreenState extends State<DailyScreen> {
     });
   }
 
-  /// Load local first, then stream Firestore (only if no local edits pending)
   Future<void> _loadDate(DateTime date) async {
     _firestoreSub?.cancel();
+    _pendingLocalIds.clear();
     setState(() {
       isLoaded = false;
       isSyncing = false;
-      _hasLocalChanges = false;
     });
 
-    // Load from Firestore stream; local overrides are applied after
+    // Check SharedPreferences for unsaved local edits per worker
+    final workers = context.read<WorkerProvider>().workers;
+    for (final w in workers) {
+      final local = await _local.loadRecord(date, w.id);
+      if (local != null && mounted) {
+        records[w.id] = local;
+        _pendingLocalIds.add(w.id);
+      }
+    }
+
+    // Stream Firestore — only fills in workers with no pending local changes
     _firestoreSub = _service.streamByDate(date).listen(
       (loaded) {
         if (!mounted) return;
         setState(() {
           for (var r in loaded) {
-            // Don't overwrite local unsaved edits
-            if (!_hasLocalChanges) {
+            if (!_pendingLocalIds.contains(r.workerRef.id)) {
               records[r.workerRef.id] = r;
             }
           }
@@ -73,19 +83,10 @@ class _DailyScreenState extends State<DailyScreen> {
       },
     );
 
-    // Apply any locally saved edits on top of Firestore data
-    final workers = context.read<WorkerProvider>().workers;
-    for (final w in workers) {
-      final local = await _local.loadRecord(date, w.id);
-      if (local != null && mounted) {
-        setState(() {
-          records[w.id] = local;
-          _hasLocalChanges = true;
-        });
-      }
+    // Show UI immediately if we already have local data, otherwise wait for stream
+    if (_pendingLocalIds.isNotEmpty && mounted) {
+      setState(() => isLoaded = true);
     }
-
-    if (mounted) setState(() => isLoaded = true);
   }
 
   bool _shouldSave(DailyRecord r) {
@@ -101,7 +102,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
   /// Save to local storage immediately on every change
   void _saveLocal(DailyRecord r) {
-    _hasLocalChanges = true;
+    _pendingLocalIds.add(r.workerRef.id);
     _local.saveRecord(r).catchError((_) {});
   }
 
@@ -113,9 +114,9 @@ class _DailyScreenState extends State<DailyScreen> {
       try {
         await _service.save(r);
         await _local.clearRecord(r.date, r.workerRef.id);
+        _pendingLocalIds.remove(r.workerRef.id);
       } catch (_) {}
     }
-    _hasLocalChanges = false;
     if (mounted) setState(() => isSyncing = false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -145,6 +146,8 @@ class _DailyScreenState extends State<DailyScreen> {
     final models = context.watch<ModelProvider>().models;
     final shapes = context.watch<ShapeProvider>().shapes;
 
+    final hasPending = _pendingLocalIds.isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(
         title: Text("إدارة اليوم"),
@@ -167,8 +170,8 @@ class _DailyScreenState extends State<DailyScreen> {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 12.w),
               child: Icon(
-                _hasLocalChanges ? Icons.cloud_upload : Icons.cloud_done,
-                color: _hasLocalChanges ? Colors.orange.shade200 : Colors.white,
+                hasPending ? Icons.cloud_upload : Icons.cloud_done,
+                color: hasPending ? Colors.orange.shade200 : Colors.white,
               ),
             ),
           IconButton(
@@ -217,7 +220,7 @@ class _DailyScreenState extends State<DailyScreen> {
                 _saveLocal(records[w.id]!);
               },
             );
-          }).toList(),
+          }),
           SizedBox(height: 80.h),
         ],
       ),
