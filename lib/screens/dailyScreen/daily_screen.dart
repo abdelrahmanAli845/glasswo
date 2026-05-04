@@ -8,10 +8,10 @@ import '../../models/daily_record.dart';
 import '../../models/work_session.dart';
 import '../../models/worker.dart';
 import '../../service/daily_service.dart';
+import '../../service/local_storage_service.dart';
 import 'worker_card.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/model_provider.dart';
-import '../../providers/settings_provider.dart';
 import '../../providers/shape_provider.dart';
 import '../../providers/worker_provider.dart';
 
@@ -25,10 +25,11 @@ class _DailyScreenState extends State<DailyScreen> {
   Map<String, DailyRecord> records = {};
   bool isLoaded = false;
   bool isSyncing = false;
+  bool _hasLocalChanges = false;
 
   StreamSubscription? _firestoreSub;
-  Timer? _saveDebounce;
   final _service = DailyService();
+  final _local = LocalStorageService();
 
   @override
   void initState() {
@@ -38,24 +39,27 @@ class _DailyScreenState extends State<DailyScreen> {
       context.read<ModelProvider>().listenAll();
       context.read<ShapeProvider>().listenAll();
       context.read<WorkerProvider>().listen();
-      _listenToDate(selectedDate);
+      _loadDate(selectedDate);
     });
   }
 
-  void _listenToDate(DateTime date) {
+  /// Load local first, then stream Firestore (only if no local edits pending)
+  Future<void> _loadDate(DateTime date) async {
     _firestoreSub?.cancel();
     setState(() {
       isLoaded = false;
       isSyncing = false;
+      _hasLocalChanges = false;
     });
 
+    // Load from Firestore stream; local overrides are applied after
     _firestoreSub = _service.streamByDate(date).listen(
       (loaded) {
         if (!mounted) return;
         setState(() {
           for (var r in loaded) {
-            // فقط حدّث لو مفيش تعديل local في الانتظار
-            if (_saveDebounce == null || !_saveDebounce!.isActive) {
+            // Don't overwrite local unsaved edits
+            if (!_hasLocalChanges) {
               records[r.workerRef.id] = r;
             }
           }
@@ -68,6 +72,20 @@ class _DailyScreenState extends State<DailyScreen> {
         setState(() => isLoaded = true);
       },
     );
+
+    // Apply any locally saved edits on top of Firestore data
+    final workers = context.read<WorkerProvider>().workers;
+    for (final w in workers) {
+      final local = await _local.loadRecord(date, w.id);
+      if (local != null && mounted) {
+        setState(() {
+          records[w.id] = local;
+          _hasLocalChanges = true;
+        });
+      }
+    }
+
+    if (mounted) setState(() => isLoaded = true);
   }
 
   bool _shouldSave(DailyRecord r) {
@@ -81,15 +99,23 @@ class _DailyScreenState extends State<DailyScreen> {
         r.id.isNotEmpty;
   }
 
+  /// Save to local storage immediately on every change
+  void _saveLocal(DailyRecord r) {
+    _hasLocalChanges = true;
+    _local.saveRecord(r).catchError((_) {});
+  }
+
+  /// Save all records to Firestore, then clear local cache
   Future<void> _saveNow() async {
-    _saveDebounce?.cancel();
     setState(() => isSyncing = true);
     for (var r in records.values) {
       if (!_shouldSave(r)) continue;
       try {
         await _service.save(r);
+        await _local.clearRecord(r.date, r.workerRef.id);
       } catch (_) {}
     }
+    _hasLocalChanges = false;
     if (mounted) setState(() => isSyncing = false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,31 +128,9 @@ class _DailyScreenState extends State<DailyScreen> {
     }
   }
 
-  void _autoSave() {
-    setState(() => isSyncing = true);
-    _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 800), () async {
-      for (var r in records.values) {
-        if (!_shouldSave(r)) continue;
-        try {
-          await _service.save(r);
-        } catch (_) {}
-      }
-      if (mounted) setState(() => isSyncing = false);
-    });
-  }
-
   @override
   void dispose() {
     _firestoreSub?.cancel();
-    // flush pending save immediately so changes aren't lost on quick navigation
-    if (_saveDebounce?.isActive == true) {
-      _saveDebounce!.cancel();
-      for (var r in records.values) {
-        if (_shouldSave(r)) _service.save(r).catchError((_) {});
-      }
-    }
-    _saveDebounce?.cancel();
     super.dispose();
   }
 
@@ -162,7 +166,10 @@ class _DailyScreenState extends State<DailyScreen> {
           else
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 12.w),
-              child: Icon(Icons.cloud_done, color: Colors.white),
+              child: Icon(
+                _hasLocalChanges ? Icons.cloud_upload : Icons.cloud_done,
+                color: _hasLocalChanges ? Colors.orange.shade200 : Colors.white,
+              ),
             ),
           IconButton(
             icon: const Icon(Icons.copy_all),
@@ -207,7 +214,7 @@ class _DailyScreenState extends State<DailyScreen> {
               shapes: shapes,
               onChanged: () {
                 setState(() {});
-                if (context.read<SettingsProvider>().autoSave) _autoSave();
+                _saveLocal(records[w.id]!);
               },
             );
           }).toList(),
@@ -292,7 +299,7 @@ class _DailyScreenState extends State<DailyScreen> {
         selectedDate = picked;
         records.clear();
       });
-      _listenToDate(picked);
+      _loadDate(picked);
     }
   }
 }

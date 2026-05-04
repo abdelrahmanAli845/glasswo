@@ -14,13 +14,6 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         children: [
           SwitchListTile(
-            title: const Text("الحفظ التلقائي"),
-            subtitle: const Text("يحفظ التعديلات تلقائياً أثناء الإدخال"),
-            value: settings.autoSave,
-            onChanged: (v) => context.read<SettingsProvider>().setAutoSave(v),
-          ),
-          const Divider(),
-          SwitchListTile(
             title: const Text("الوضع الليلي"),
             subtitle: const Text("تحويل الشاشة للوضع الداكن"),
             value: settings.darkMode,
