@@ -9,7 +9,9 @@ import '../../models/work_session.dart';
 import '../../models/worker.dart';
 import '../../service/daily_service.dart';
 import '../../service/local_storage_service.dart';
+import '../../service/salary_calculator.dart';
 import 'worker_card.dart';
+import '../../providers/bouns_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/model_provider.dart';
 import '../../providers/shape_provider.dart';
@@ -53,15 +55,12 @@ class _DailyScreenState extends State<DailyScreen> {
       isSyncing = false;
     });
 
-    // Check SharedPreferences for unsaved local edits per worker
-    final workers = context.read<WorkerProvider>().workers;
-    for (final w in workers) {
-      final local = await _local.loadRecord(date, w.id);
-      if (local != null && mounted) {
-        records[w.id] = local;
-        _pendingLocalIds.add(w.id);
-      }
-    }
+    // Check SharedPreferences for unsaved local edits. Read by date, not by
+    // iterating workers: on a cold start the workers list is still empty here.
+    final local = await _local.loadDate(date);
+    if (!mounted) return;
+    records.addAll(local);
+    _pendingLocalIds.addAll(local.keys);
 
     // Stream Firestore — only fills in workers with no pending local changes
     _firestoreSub = _service.streamByDate(date).listen(
@@ -108,25 +107,50 @@ class _DailyScreenState extends State<DailyScreen> {
 
   /// Save all records to Firestore, then clear local cache
   Future<void> _saveNow() async {
+    final workers = {
+      for (final w in context.read<WorkerProvider>().workers) w.id: w,
+    };
+    final bonus = context.read<BonusProvider>();
+    final shapes = context.read<ShapeProvider>().shapes;
+
     setState(() => isSyncing = true);
-    for (var r in records.values) {
+    int failed = 0;
+    // Copy: the Firestore listener can add records while we await saves
+    for (var r in records.values.toList()) {
       if (!_shouldSave(r)) continue;
+      final worker = workers[r.workerRef.id];
+      if (worker == null) continue;
+      // Recalculate here: totalSalary is otherwise only set when the card is built
+      r.totalSalary = SalaryCalculator.calculate(
+        worker: worker,
+        record: r,
+        bonus: bonus,
+        shapes: shapes,
+      );
       try {
         await _service.save(r);
         await _local.clearRecord(r.date, r.workerRef.id);
         _pendingLocalIds.remove(r.workerRef.id);
-      } catch (_) {}
+      } catch (e) {
+        failed++;
+        debugPrint('Failed to save record for worker ${r.workerRef.id}: $e');
+      }
     }
-    if (mounted) setState(() => isSyncing = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("تم الحفظ بنجاح ✓"),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
+    if (!mounted) return;
+    setState(() => isSyncing = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      failed == 0
+          ? const SnackBar(
+              content: Text("تم الحفظ بنجاح ✓"),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            )
+          : SnackBar(
+              content: Text("فشل حفظ $failed سجل — التعديلات لسه محفوظة على الجهاز، حاول تاني"),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+    );
   }
 
   @override
