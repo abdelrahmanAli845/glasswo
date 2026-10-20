@@ -22,6 +22,23 @@ class LocalStorageService {
     }
   }
 
+  /// All unsaved local records for [date], keyed by worker ID.
+  /// Reads the keys directly so it doesn't depend on the workers list being loaded.
+  Future<Map<String, DailyRecord>> loadDate(DateTime date) async {
+    final prefs = await SharedPreferences.getInstance();
+    final prefix = 'record_${date.year}_${date.month}_${date.day}_';
+    final result = <String, DailyRecord>{};
+    for (final k in prefs.getKeys().where((k) => k.startsWith(prefix))) {
+      final raw = prefs.getString(k);
+      if (raw == null) continue;
+      try {
+        final r = DailyRecord.fromLocalJson(jsonDecode(raw) as Map<String, dynamic>);
+        result[r.workerRef.id] = r;
+      } catch (_) {}
+    }
+    return result;
+  }
+
   Future<void> clearRecord(DateTime date, String workerId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key(date, workerId));

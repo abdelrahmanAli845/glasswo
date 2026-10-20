@@ -11,6 +11,7 @@ import '../../models/shape.dart';
 import '../../models/work_session.dart';
 import '../../models/worker.dart';
 import '../../providers/bouns_provider.dart';
+import '../../service/salary_calculator.dart';
 
 class WorkerCard extends StatefulWidget {
  final Worker worker;
@@ -143,95 +144,19 @@ class _WorkerCardState extends State<WorkerCard> {
   return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
  }
 
- double get _totalWorkedHours {
-  int totalMinutes = 0;
-  for (final s in widget.record.sessions) {
-   if (s.checkIn == null || s.checkOut == null) continue;
-   final diff = s.checkOut!.difference(s.checkIn!).inMinutes;
-   if (diff > 0) totalMinutes += diff;
-  }
-  return totalMinutes / 60.0;
- }
+ double get _totalWorkedHours => SalaryCalculator.workedHours(widget.record);
 
  /// ساعات الأوفر تايم
- double get _overtimeHours {
-  final extra = _totalWorkedHours - widget.worker.workHours;
-  return extra > 0 ? extra : 0;
- }
+ double get _overtimeHours =>
+     SalaryCalculator.overtimeHours(widget.worker, widget.record);
 
  double calculateSalary() {
-  if (widget.record.isAbsent) {
-   widget.record.totalSalary = 0;
-   return 0;
-  }
-
-  double total = widget.worker.dailySalary;
-
-  if (_overtimeHours > 0) {
-   final hourRate = widget.worker.dailySalary / widget.worker.workHours;
-   total += _overtimeHours * (hourRate * 2);
-  }
-
-  /// 🎁 الحوافز (فقط لو مسموح)
-  if (widget.worker.hasBonus) {
-   final bonus = context.read<BonusProvider>();
-
-   if (widget.record.rating > 0) {
-    int factor = (6 - widget.record.rating);
-    total += bonus.qualityBonus / factor;
-   }
-
-   if (widget.record.onTime) {
-    total += bonus.commitmentBonus;
-   }
-
-   for (var item in productions) {
-    if (item.shapeRef == null || item.modelRef == null) continue;
-
-    final shape = widget.shapes.firstWhere(
-         (s) =>
-     s.id == item.shapeRef!.id &&
-         s.modelRef.id == item.modelRef!.id,
-     orElse: () => Shape(
-      id: '',
-      name: '',
-      target: 0,
-      modelRef:
-      FirebaseFirestore.instance.collection('models').doc('dummy'),
-     ),
-    );
-
-    if (shape.id.isNotEmpty && item.quantity >= shape.target) {
-     total += bonus.productionBonus;
-    }
-   }
-  }
-
-  /// ❌ الخصومات (تشتغل دايماً)
-  switch (widget.record.deductionType) {
-   case 'qurofhour':
-    total -= widget.worker.dailySalary / widget.worker.workHours / 4;
-    break;
-   case 'halfofhour':
-    total -= widget.worker.dailySalary / widget.worker.workHours / 2;
-    break;
-   case 'hour':
-    total -= widget.worker.dailySalary / widget.worker.workHours;
-    break;
-   case '2hours':
-    total -= (widget.worker.dailySalary / widget.worker.workHours) * 2;
-    break;
-   case 'quarter':
-    total -= widget.worker.dailySalary * 0.25;
-    break;
-   case 'half':
-    total -= widget.worker.dailySalary * 0.5;
-    break;
-   case 'full':
-    total -= widget.worker.dailySalary;
-    break;
-  }
-
+  final total = SalaryCalculator.calculate(
+   worker: widget.worker,
+   record: widget.record,
+   bonus: context.read<BonusProvider>(),
+   shapes: widget.shapes,
+  );
   widget.record.totalSalary = total;
   return total;
  }
@@ -247,9 +172,7 @@ class _WorkerCardState extends State<WorkerCard> {
  Widget _buildWorkSummary() {
   final total = _totalWorkedHours;
   final overtime = _overtimeHours;
-  final overtimePay = overtime > 0
-      ? overtime * (widget.worker.dailySalary / widget.worker.workHours) * 2
-      : 0.0;
+  final overtimePay = SalaryCalculator.overtimePay(widget.worker, widget.record);
 
   return Container(
    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
