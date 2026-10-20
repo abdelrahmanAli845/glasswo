@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../models/worker.dart';
@@ -9,39 +10,47 @@ class WorkerProvider extends ChangeNotifier {
   WorkerProvider(this.service);
 
   List<Worker> workers = [];
+  StreamSubscription? _sub;
 
   void listen() {
-    service.stream().listen((data) {
+    if (_sub != null) return;
+    _sub = service.stream().listen((data) {
       workers = data;
       notifyListeners();
     });
   }
 
-  void save({
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> save({
     String? id,
     required String name,
     required double salary,
     required double workHours,
     required bool hasBonus,
-  }) {
+  }) async {
     if (id == null) {
-      service.add(
+      await service.add(
         Worker(
           id: '',
           name: name,
           dailySalary: salary,
           workHours: workHours,
-          hasBonus: hasBonus, // 👈🔥 لازم يتحط
+          hasBonus: hasBonus,
         ),
       );
     } else {
-      service.update(
+      await service.update(
         Worker(
           id: id,
           name: name,
           dailySalary: salary,
           workHours: workHours,
-          hasBonus: hasBonus, // 👈🔥 لازم يتحط
+          hasBonus: hasBonus,
         ),
       );
     }

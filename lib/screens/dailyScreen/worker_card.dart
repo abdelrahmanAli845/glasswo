@@ -8,8 +8,10 @@ import '../../models/product.dart';
 import '../../models/product_model.dart';
 import '../../models/production_item.dart';
 import '../../models/shape.dart';
+import '../../models/work_session.dart';
 import '../../models/worker.dart';
 import '../../providers/bouns_provider.dart';
+import '../../service/salary_calculator.dart';
 
 class WorkerCard extends StatefulWidget {
  final Worker worker;
@@ -37,9 +39,15 @@ class _WorkerCardState extends State<WorkerCard> {
  late List<ProductionItem> productions;
  bool isExpanded = false;
  late List<TextEditingController> qtyControllers;
+ late TextEditingController _advanceController;
+
  @override
  void initState() {
   super.initState();
+
+  if (widget.record.sessions.isEmpty) {
+   widget.record.sessions = [WorkSession()];
+  }
 
   productions = List.from(widget.record.productions);
 
@@ -58,12 +66,20 @@ class _WorkerCardState extends State<WorkerCard> {
     text: p.quantity == 0 ? '' : p.quantity.toString(),
    );
   }).toList();
+
+  _advanceController = TextEditingController(
+   text: widget.record.advance == 0 ? '' : widget.record.advance.toString(),
+  );
  }
  @override
  void didUpdateWidget(covariant WorkerCard oldWidget) {
   super.didUpdateWidget(oldWidget);
 
   if (oldWidget.record != widget.record) {
+   if (widget.record.sessions.isEmpty) {
+    widget.record.sessions = [WorkSession()];
+   }
+
    productions = List.from(widget.record.productions);
 
    if (productions.isEmpty) {
@@ -76,35 +92,46 @@ class _WorkerCardState extends State<WorkerCard> {
      ),
     );
    }
+   for (var c in qtyControllers) { c.dispose(); }
    qtyControllers = productions.map((p) {
     return TextEditingController(
      text: p.quantity == 0 ? '' : p.quantity.toString(),
     );
    }).toList();
+
+   _advanceController.dispose();
+   _advanceController = TextEditingController(
+    text: widget.record.advance == 0 ? '' : widget.record.advance.toString(),
+   );
    setState(() {});
   }
  }
- Future<void> pickTime(bool isCheckIn) async {
+ Future<void> pickTime(int sessionIndex, bool isCheckIn) async {
+  final session = widget.record.sessions[sessionIndex];
   final time = await showTimePicker(
    context: context,
-   initialTime: TimeOfDay.now(),
+   initialTime: isCheckIn
+       ? (session.checkIn != null ? TimeOfDay.fromDateTime(session.checkIn!) : TimeOfDay.now())
+       : (session.checkOut != null ? TimeOfDay.fromDateTime(session.checkOut!) : TimeOfDay.now()),
   );
 
   if (time != null) {
-   final now = DateTime.now();
-   final date = DateTime(
-    now.year,
-    now.month,
-    now.day,
-    time.hour,
-    time.minute,
-   );
+   final d = widget.record.date;
+   var date = DateTime(d.year, d.month, d.day, time.hour, time.minute);
 
    setState(() {
     if (isCheckIn) {
-     widget.record.checkIn = date;
+     session.checkIn = date;
+     // لو checkOut موجود وبقى قبل checkIn، اعتبره اليوم التالي
+     if (session.checkOut != null && session.checkOut!.isBefore(date)) {
+      session.checkOut = session.checkOut!.add(const Duration(days: 1));
+     }
     } else {
-     widget.record.checkOut = date;
+     // لو checkOut قبل checkIn، اعتبره ورديه ليلية (اليوم التالي)
+     if (session.checkIn != null && date.isBefore(session.checkIn!)) {
+      date = date.add(const Duration(days: 1));
+     }
+     session.checkOut = date;
     }
    });
 
@@ -112,101 +139,106 @@ class _WorkerCardState extends State<WorkerCard> {
   }
  }
 
+ String _formatTime(DateTime? dt) {
+  if (dt == null) return '--:--';
+  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+ }
+
+ double get _totalWorkedHours => SalaryCalculator.workedHours(widget.record);
+
+ /// ساعات الأوفر تايم
+ double get _overtimeHours =>
+     SalaryCalculator.overtimeHours(widget.worker, widget.record);
+
  double calculateSalary() {
-  if (widget.record.isAbsent) {
-   return 0;
-  }
-
-  double total = widget.worker.dailySalary;
-
-  /// ⏱️ أوفر تايم (مهم حتى لو مفيش بونص)
-  if (widget.record.checkIn != null && widget.record.checkOut != null) {
-   final duration =
-   widget.record.checkOut!.difference(widget.record.checkIn!);
-   final hours = duration.inHours;
-
-   final baseHours = widget.worker.workHours;
-
-   if (hours > baseHours) {
-    double hourRate = widget.worker.dailySalary / baseHours;
-    total += (hours - baseHours) * (hourRate * 2);
-   }
-  }
-
-  /// 🎁 الحوافز (فقط لو مسموح)
-  if (widget.worker.hasBonus) {
-   final bonus = context.read<BonusProvider>();
-
-   if (widget.record.rating > 0) {
-    int factor = (6 - widget.record.rating);
-    total += bonus.qualityBonus / factor;
-   }
-
-   if (widget.record.onTime) {
-    total += bonus.commitmentBonus;
-   }
-
-   for (var item in productions) {
-    if (item.shapeRef == null || item.modelRef == null) continue;
-
-    final shape = widget.shapes.firstWhere(
-         (s) =>
-     s.id == item.shapeRef!.id &&
-         s.modelRef.id == item.modelRef!.id,
-     orElse: () => Shape(
-      id: '',
-      name: '',
-      target: 0,
-      modelRef:
-      FirebaseFirestore.instance.collection('models').doc('dummy'),
-     ),
-    );
-
-    if (shape.id.isNotEmpty && item.quantity >= shape.target) {
-     total += bonus.productionBonus;
-    }
-   }
-  }
-
-  /// ❌ الخصومات (تشتغل دايماً)
-  switch (widget.record.deductionType) {
-   case 'qurofhour':
-    total -= widget.worker.dailySalary / widget.worker.workHours / 4;
-    break;
-   case 'halfofhour':
-    total -= widget.worker.dailySalary / widget.worker.workHours / 2;
-    break;
-   case 'hour':
-    total -= widget.worker.dailySalary / widget.worker.workHours;
-    break;
-   case '2hours':
-    total -= (widget.worker.dailySalary / widget.worker.workHours) * 2;
-    break;
-   case 'quarter':
-    total -= widget.worker.dailySalary * 0.25;
-    break;
-   case 'half':
-    total -= widget.worker.dailySalary * 0.5;
-    break;
-   case 'full':
-    total -= widget.worker.dailySalary;
-    break;
-  }
-
+  final total = SalaryCalculator.calculate(
+   worker: widget.worker,
+   record: widget.record,
+   bonus: context.read<BonusProvider>(),
+   shapes: widget.shapes,
+  );
   widget.record.totalSalary = total;
   return total;
  }
+ String _formatHours(double hours) {
+  final totalMinutes = (hours * 60).round();
+  final h = totalMinutes ~/ 60;
+  final m = totalMinutes % 60;
+  if (h == 0) return "${m}د";
+  if (m == 0) return "${h}س";
+  return "${h}س ${m}د";
+ }
+
+ Widget _buildWorkSummary() {
+  final total = _totalWorkedHours;
+  final overtime = _overtimeHours;
+  final overtimePay = SalaryCalculator.overtimePay(widget.worker, widget.record);
+
+  return Container(
+   padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+   decoration: BoxDecoration(
+    color: Colors.blue.shade50,
+    borderRadius: BorderRadius.circular(10.r),
+   ),
+   child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceAround,
+    children: [
+     Column(
+      children: [
+       Text("إجمالي الوقت", style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
+       SizedBox(height: 2.h),
+       Text(_formatHours(total), style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold)),
+      ],
+     ),
+     Container(width: 1, height: 30.h, color: Colors.blue.shade200),
+     Column(
+      children: [
+       Text("أوفر تايم", style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
+       SizedBox(height: 2.h),
+       Text(
+        overtime > 0 ? _formatHours(overtime) : "—",
+        style: TextStyle(
+         fontSize: 13.sp,
+         fontWeight: FontWeight.bold,
+         color: overtime > 0 ? Colors.orange.shade700 : Colors.grey,
+        ),
+       ),
+      ],
+     ),
+     if (overtime > 0) ...[
+      Container(width: 1, height: 30.h, color: Colors.blue.shade200),
+      Column(
+       children: [
+        Text("أجر الأوفر", style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade600)),
+        SizedBox(height: 2.h),
+        Text(
+         "+${overtimePay.toStringAsFixed(0)} ج",
+         style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.bold, color: Colors.green.shade700),
+        ),
+       ],
+      ),
+     ],
+    ],
+   ),
+  );
+ }
+
  @override
  Widget build(BuildContext context) {
   final totalSalary = calculateSalary();
 
   return GestureDetector(
-   onTap: () => setState(() => isExpanded = !isExpanded),
+   onTap: widget.record.isAbsent ? null : () => setState(() => isExpanded = !isExpanded),
    child: Container(
     margin:  EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
     child: Card(
-     shape:
-     RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+     color: widget.record.isAbsent ? Colors.red.shade50 : null,
+     shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16.r),
+      side: widget.record.isAbsent
+          ? BorderSide(color: Colors.red.shade200, width: 1.5)
+          : BorderSide.none,
+     ),
      elevation: 3,
      child: Padding(
       padding:  EdgeInsets.all(12.w),
@@ -217,61 +249,100 @@ class _WorkerCardState extends State<WorkerCard> {
          mainAxisAlignment: MainAxisAlignment.spaceBetween,
          children: [
           Text(widget.worker.name),
-          Column(
-            children: [
-             Text("غياب"),
-
-             Switch(
-               value: widget.record.isAbsent,
-               onChanged: (v) {
-                setState(() {
-                 widget.record.isAbsent = v;
-                });
-                widget.onChanged();
-               },
-              ),
-            ],
-          ),
           Row(
+           mainAxisSize: MainAxisSize.min,
            children: [
-            Text("${totalSalary.toStringAsFixed(2)} ج"),
-            Icon(isExpanded
-                ? Icons.keyboard_arrow_up
-                : Icons.keyboard_arrow_down),
+            Text("غياب", style: TextStyle(fontSize: 12.sp)),
+            Switch(
+              value: widget.record.isAbsent,
+              activeThumbColor: Colors.red,
+              onChanged: (v) {
+               setState(() {
+                widget.record.isAbsent = v;
+                if (v) isExpanded = false;
+               });
+               widget.onChanged();
+              },
+             ),
            ],
           ),
+          if (widget.record.isAbsent)
+           Container(
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+            decoration: BoxDecoration(
+             color: Colors.red.shade200,
+             borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Text(
+             "غائب",
+             style: TextStyle(
+              color: Colors.red.shade900,
+              fontWeight: FontWeight.bold,
+              fontSize: 13.sp,
+             ),
+            ),
+           )
+          else
+           Row(
+            children: [
+             Text("${totalSalary.toStringAsFixed(2)} ج"),
+             Icon(isExpanded
+                 ? Icons.keyboard_arrow_up
+                 : Icons.keyboard_arrow_down),
+            ],
+           ),
          ],
         ),
 
         SizedBox(height: 10.h),
 
         if (isExpanded) ...[
-         /// ⏰ الوقت
-         Row(
-          children: [
-           Expanded(
-            child: ElevatedButton(
-             onPressed: () => pickTime(true),
-             child: Text(
-              widget.record.checkIn == null
-                  ? "حضور"
-                  : "${widget.record.checkIn!.hour}:${widget.record.checkIn!.minute}",
+         /// ⏰ الأوقات
+         ...widget.record.sessions.asMap().entries.map((entry) {
+          final i = entry.key;
+          final session = entry.value;
+          return Padding(
+           padding: EdgeInsets.only(bottom: 6.h),
+           child: Row(
+            children: [
+             Expanded(
+              child: ElevatedButton(
+               onPressed: () => pickTime(i, true),
+               child: Text(session.checkIn == null ? "حضور" : _formatTime(session.checkIn)),
+              ),
              ),
-            ),
-           ),
-           SizedBox(width: 8.w),
-           Expanded(
-            child: ElevatedButton(
-             onPressed: () => pickTime(false),
-             child: Text(
-              widget.record.checkOut == null
-                  ? "انصراف"
-                  : "${widget.record.checkOut!.hour}:${widget.record.checkOut!.minute}",
+             SizedBox(width: 6.w),
+             Expanded(
+              child: ElevatedButton(
+               onPressed: () => pickTime(i, false),
+               child: Text(session.checkOut == null ? "انصراف" : _formatTime(session.checkOut)),
+              ),
              ),
-            ),
+             if (widget.record.sessions.length > 1)
+              IconButton(
+               icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade400, size: 20.w),
+               onPressed: () {
+                setState(() => widget.record.sessions.removeAt(i));
+                widget.onChanged();
+               },
+              ),
+            ],
            ),
-          ],
+          );
+         }),
+         TextButton.icon(
+          onPressed: () {
+           setState(() => widget.record.sessions.add(WorkSession()));
+           widget.onChanged();
+          },
+          icon: Icon(Icons.add_circle_outline, size: 18.w),
+          label: const Text("وقت إضافي"),
          ),
+
+         if (_totalWorkedHours > 0) ...[
+          SizedBox(height: 8.h),
+          _buildWorkSummary(),
+         ],
 
          SizedBox(height: 10.h),
   if (widget.worker.hasBonus) ...[
@@ -339,6 +410,19 @@ class _WorkerCardState extends State<WorkerCard> {
            setState(() {
             widget.record.deductionType = v!;
            });
+           widget.onChanged();
+          },
+         ),
+         SizedBox(height: 8.h),
+         TextFormField(
+          controller: _advanceController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+           labelText: "سلفة",
+           prefixIcon: Icon(Icons.money_off),
+          ),
+          onChanged: (v) {
+           widget.record.advance = double.tryParse(v) ?? 0;
            widget.onChanged();
           },
          ),
@@ -495,6 +579,7 @@ class _WorkerCardState extends State<WorkerCard> {
   for (var c in qtyControllers) {
    c.dispose();
   }
+  _advanceController.dispose();
   super.dispose();
  }
 }

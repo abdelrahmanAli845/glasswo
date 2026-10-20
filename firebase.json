@@ -1,1 +1,36 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"glassworker","appId":"1:929825893517:android:aa69e3ffb97eb8f84f06c4","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"glassworker","configurations":{"android":"1:929825893517:android:aa69e3ffb97eb8f84f06c4","ios":"1:929825893517:ios:cfe97e5d5eb2439a4f06c4"}}}}}}
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "glassworker",
+          "appId": "1:929825893517:android:aa69e3ffb97eb8f84f06c4",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "glassworker",
+          "configurations": {
+            "android": "1:929825893517:android:aa69e3ffb97eb8f84f06c4",
+            "ios": "1:929825893517:ios:cfe97e5d5eb2439a4f06c4"
+          }
+        }
+      }
+    }
+  }
+}

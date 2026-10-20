@@ -21,10 +21,6 @@ class WorkerService {
 
   Stream<List<Worker>> stream() {
     return _col.snapshots().map((snapshot) {
-      print("🔥 snapshot جاله: ${snapshot.docs.length}");
-      return snapshot.docs.map((e) {
-        print("🔥 doc data: ${e.data()}");
-        return Worker.fromDoc(e);
-      }).toList();
+      return snapshot.docs.map((e) => Worker.fromDoc(e)).toList();
     });
   }}

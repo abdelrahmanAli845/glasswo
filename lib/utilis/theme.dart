@@ -76,3 +76,18 @@ final ThemeData appTheme = ThemeData(
     space: 20,
   ),
 );
+
+final ThemeData darkAppTheme = ThemeData(
+  useMaterial3: true,
+  brightness: Brightness.dark,
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: Color(0xFF1E88E5),
+    brightness: Brightness.dark,
+  ),
+  appBarTheme: const AppBarTheme(
+    centerTitle: true,
+    backgroundColor: Color(0xFF1565C0),
+    foregroundColor: Colors.white,
+    elevation: 0,
+  ),
+);
