@@ -68,8 +68,13 @@ class _DailyScreenState extends State<DailyScreen> {
         if (!mounted) return;
         setState(() {
           for (var r in loaded) {
-            if (!_pendingLocalIds.contains(r.workerRef.id)) {
-              records[r.workerRef.id] = r;
+            final workerId = r.workerRef.id;
+            if (!_pendingLocalIds.contains(workerId)) {
+              records[workerId] = r;
+            } else if (records[workerId]?.id.isEmpty ?? false) {
+              // Unsaved local edit for a day that already exists on the server:
+              // save over that document instead of creating a second copy.
+              records[workerId]!.id = r.id;
             }
           }
           isLoaded = true;
@@ -115,11 +120,9 @@ class _DailyScreenState extends State<DailyScreen> {
 
     setState(() => isSyncing = true);
     int failed = 0;
-    // Copy: the Firestore listener can add records while we await saves
-    for (var r in records.values.toList()) {
-      if (!_shouldSave(r)) continue;
-      final worker = workers[r.workerRef.id];
-      if (worker == null) continue;
+    int queued = 0;
+
+    Future<void> saveOne(DailyRecord r, Worker worker) async {
       // Recalculate here: totalSalary is otherwise only set when the card is built
       r.totalSalary = SalaryCalculator.calculate(
         worker: worker,
@@ -128,28 +131,49 @@ class _DailyScreenState extends State<DailyScreen> {
         shapes: shapes,
       );
       try {
-        await _service.save(r);
-        await _local.clearRecord(r.date, r.workerRef.id);
-        _pendingLocalIds.remove(r.workerRef.id);
+        final confirmed = await _service.save(r);
+        if (confirmed) {
+          await _local.clearRecord(r.date, r.workerRef.id);
+          _pendingLocalIds.remove(r.workerRef.id);
+        } else {
+          // No connection: Firestore sends it later. Keep the local copy, now
+          // with its fixed ID, so saving again overwrites instead of duplicating.
+          queued++;
+          await _local.saveRecord(r);
+        }
       } catch (e) {
         failed++;
         debugPrint('Failed to save record for worker ${r.workerRef.id}: $e');
       }
     }
+
+    // Copy: the Firestore listener can add records while we await saves
+    await Future.wait([
+      for (final r in records.values.toList())
+        if (_shouldSave(r) && workers[r.workerRef.id] != null)
+          saveOne(r, workers[r.workerRef.id]!),
+    ]);
+
     if (!mounted) return;
     setState(() => isSyncing = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      failed == 0
-          ? const SnackBar(
-              content: Text("تم الحفظ بنجاح ✓"),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            )
-          : SnackBar(
+      failed > 0
+          ? SnackBar(
               content: Text("فشل حفظ $failed سجل — التعديلات لسه محفوظة على الجهاز، حاول تاني"),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 4),
-            ),
+            )
+          : queued > 0
+              ? const SnackBar(
+                  content: Text("مفيش نت — اتحفظ على الجهاز وهيترفع لوحده لما النت يرجع"),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 4),
+                )
+              : const SnackBar(
+                  content: Text("تم الحفظ بنجاح ✓"),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
     );
   }
 

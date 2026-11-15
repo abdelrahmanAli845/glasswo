@@ -45,11 +45,11 @@ class _DashboardContentState extends State<DashboardContent> {
     final monthStr = "${selectedMonth.month}/${selectedMonth.year}";
     final buffer = StringBuffer();
     buffer.writeln("تقرير شهر $monthStr");
-    buffer.writeln("العامل,الحضور,الغياب,إجمالي الراتب,السلف,متوسط التقييم");
+    buffer.writeln("العامل,الحضور,الغياب,إجمالي الراتب,السلف,الصافي,متوسط التقييم");
     for (final data in stats) {
       final w = data["worker"] as Worker;
       buffer.writeln(
-        "${w.name},${data["attendance"]},${data["absent"]},${(data["salary"] as double).toInt()},${(data["advance"] as double).toInt()},${(data["avg"] as double).toStringAsFixed(1)}",
+        "${w.name},${data["attendance"]},${data["absent"]},${(data["salary"] as double).toInt()},${(data["advance"] as double).toInt()},${((data["salary"] as double) - (data["advance"] as double)).toInt()},${(data["avg"] as double).toStringAsFixed(1)}",
       );
     }
     Share.share(buffer.toString(), subject: "تقرير $monthStr");
@@ -88,12 +88,14 @@ class _DashboardContentState extends State<DashboardContent> {
 
       int onTimeDays = attendance - lateDays;
 
+      // متوسط التقييم على أيام الحضور بس
+      final presentRecords = workerRecords.where((r) => !r.isAbsent).toList();
       double avgRating = 0;
-      if (workerRecords.isNotEmpty) {
-        avgRating = workerRecords
+      if (presentRecords.isNotEmpty) {
+        avgRating = presentRecords
             .map((e) => e.rating)
             .reduce((a, b) => a + b) /
-            workerRecords.length;
+            presentRecords.length;
       }
 
       return {
@@ -204,7 +206,7 @@ class _DashboardContentState extends State<DashboardContent> {
               ),
             ),
 
-            if (totalAdvance > 0)
+            if (totalAdvance > 0) ...[
               Card(
                 child: ListTile(
                   title: const Text("إجمالي السلف"),
@@ -217,6 +219,19 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                 ),
               ),
+              Card(
+                child: ListTile(
+                  title: const Text("الصافي بعد السلف"),
+                  trailing: Text(
+                    "${(totalFactory - totalAdvance).toInt()} ج",
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
 
             SizedBox(height: 10.h),
 
@@ -271,8 +286,10 @@ class _DashboardContentState extends State<DashboardContent> {
                               stat("⭐️", avg.toStringAsFixed(1)),
                               stat("متأخر", data["late"]),
                               stat("ملتزم", data["onTime"]),
-                              if (advance > 0)
+                              if (advance > 0) ...[
                                 stat("سلف", "${advance.toInt()} ج"),
+                                stat("الصافي", "${(salary - advance).toInt()} ج"),
+                              ],
                             ],
                           ),
                         ],

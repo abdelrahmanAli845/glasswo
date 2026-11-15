@@ -16,6 +16,9 @@ class DailyRecord {
   double advance;
   List<ProductionItem> productions;
 
+  /// Device time of the last save; picks the newest copy when duplicates exist.
+  DateTime? updatedAt;
+
   DailyRecord({
     required this.id,
     required this.workerRef,
@@ -29,6 +32,7 @@ class DailyRecord {
     this.totalSalary = 0,
     this.notes = '',
     this.advance = 0,
+    this.updatedAt,
   });
 
   Map<String, dynamic> toJson() {
@@ -44,6 +48,7 @@ class DailyRecord {
       'totalSalary': totalSalary,
       'notes': notes,
       'advance': advance,
+      if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
     };
   }
 
@@ -75,6 +80,7 @@ class DailyRecord {
       totalSalary: (data['totalSalary'] ?? 0).toDouble(),
       notes: data['notes'] ?? '',
       advance: (data['advance'] ?? 0).toDouble(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       productions: (data['productions'] as List? ?? [])
           .map((e) => ProductionItem.fromMap(e))
           .toList(),
